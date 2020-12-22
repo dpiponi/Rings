@@ -47,8 +47,10 @@ void InitDynamics()
   }
 }
 
-void DynamicsRange(int From, int To)
+void DynamicsRange(int From, int To, int NSteps)
 {
+  for (int Step = 0; Step < NSteps; ++Step)
+  {
     for (int i = From; i < To; ++i)
     {
       double R = hypot(particles[i].x, particles[i].y);
@@ -60,14 +62,14 @@ void DynamicsRange(int From, int To)
       particles[i].x += dt * velocities[i].x;
       particles[i].y += dt * velocities[i].y;
     }
+  }
 }
 
 void dynamics()
 {
   printf("Dynamics\n");
-  for (int step = 0; step < 10; ++step)
   {
-    DynamicsRange(0, n_particles);
+    DynamicsRange(0, n_particles, 10);
   }
 
   printf("%f %f\n", particles[0].x, particles[0].y);
