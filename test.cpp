@@ -6,18 +6,19 @@
 #include "raylib.h"
 
 #define n_particles 100000
-#define n_threads 8
+#define n_threads 16
 
 double M = 1.0;
 double G = 1.0;
 double Distance = 1.0;
 double AngularVelocity;
-double MoonMass = 0.000001;
-double MoonRadius = 1.125;
+double MoonMass = 0.00000002;
+double MoonRadius = 1.105;
+int NumSteps = 200;
 
 double dt = 0.0001;
 
-Color ParticleColour = {255, 255, 255, 60};
+Color ParticleColour = {255, 255, 255, 128};
 Color MoonColour = {255, 255, 255, 255};
 
 struct V2d
@@ -83,7 +84,7 @@ void InitDynamics()
 
   for (int i = 0; i < n_particles; ++i)
   {
-    double Radius = 1.0 + 0.1 * 0.0001 * GetRandomValue(0, 10000);
+    double Radius = 1.085 + 0.015 * 0.0001 * GetRandomValue(0, 10000);
     double Angle = 2 * M_PI * 0.000001 * GetRandomValue(0, 1000000);
     particles[i].x = Radius * cos(Angle);
     particles[i].y = Radius * sin(Angle);
@@ -140,7 +141,7 @@ void dynamics()
     {
       int First = Thread * n_particles / n_threads;
       int Last = std::min((Thread + 1) * n_particles / n_threads, n_particles);
-      DynamicsRange(First, Last, 100);
+      DynamicsRange(First, Last, NumSteps);
     });
   }
 
@@ -152,16 +153,16 @@ void dynamics()
 //   printf("%f %f\n", particles[0].x, particles[0].y);
 }
 
-const int ScreenWidth = 1400;
-const int ScreenHeight = 1400;
+const int ScreenWidth = 512;
+const int ScreenHeight = 512;
 
 void DrawParticles()
 {
-#if 0
-  double Top = 1.2;
-  double Bottom = 0.8;
-  double Left = -0.1;
-  double Right = 0.1;
+#if 1
+  double Top = 0.2;
+  double Bottom = -0.2;
+  double Left = 0.9;
+  double Right = 1.3;
 #else
   double Top = 1.2;
   double Bottom = -1.2;
@@ -171,23 +172,46 @@ void DrawParticles()
 
   double Distance = MoonRadius;
   double AngularVelocity = sqrt(G * M / (Distance * Distance * Distance));
-  M22d Rotate = Rotation(-t * AngularVelocity);
+  M22d Rotate = Rotation(t * AngularVelocity);
 
   for (int i = 0; i < n_particles; ++i)
   {
     V2d P = particles[i];
+    P = MatrixVectorMultiply(Rotate, P);
     if (P.x > Left && P.x < Right &&
         P.y > Bottom && P.y < Top)
     {
-      int ScreenX = rint((P.x - Left) / (Right - Left) * ScreenWidth);
-      int ScreenY = rint((P.y - Top) / (Bottom - Top) * ScreenHeight);
-      DrawPixel(ScreenX, ScreenY, ParticleColour);
+      double ScreenX = (P.x - Left) / (Right - Left) * ScreenWidth;
+      double ScreenY = (P.y - Top) / (Bottom - Top) * ScreenHeight;
+      float IX = (int)ScreenX;
+      float IY = (int)ScreenY;
+      float FX = ScreenX - IX;
+      float FY = ScreenY - IY;
+      float F;
+      Color C;
+
+      F = (1 - FX) * (1 - FY);
+      C = Color{ParticleColour.r, ParticleColour.g, ParticleColour.b, (unsigned char)(F * ParticleColour.a)};
+      DrawPixel(ScreenX, ScreenY, C);
+
+      F = (1 - FX) * FY;
+      C = Color{ParticleColour.r, ParticleColour.g, ParticleColour.b, (unsigned char)(F * ParticleColour.a)};
+      DrawPixel(ScreenX, ScreenY + 1, C);
+
+      F = FX * (1 - FY);
+      C = Color{ParticleColour.r, ParticleColour.g, ParticleColour.b, (unsigned char)(F * ParticleColour.a)};
+      DrawPixel(ScreenX + 1, ScreenY, C);
+
+      F = FX * FY;
+      C = Color{ParticleColour.r, ParticleColour.g, ParticleColour.b, (unsigned char)(F * ParticleColour.a)};
+      DrawPixel(ScreenX + 1, ScreenY + 1, C);
     }
   }
 
-  int ScreenX = rint((Shepherd.x - Left) / (Right - Left) * ScreenWidth);
-  int ScreenY = rint((Shepherd.y - Top) / (Bottom - Top) * ScreenHeight);
-  DrawCircle(ScreenX, ScreenY, 4.0, MoonColour);
+  V2d S = MatrixVectorMultiply(Rotate, Shepherd);
+  int ScreenX = rint((S.x - Left) / (Right - Left) * ScreenWidth);
+  int ScreenY = rint((S.y - Top) / (Bottom - Top) * ScreenHeight);
+  DrawCircle(ScreenX, ScreenY, 2.0, MoonColour);
 }
 
 int main(void)
