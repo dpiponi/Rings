@@ -12,11 +12,13 @@ double M = 1.0;
 double G = 1.0;
 double Distance = 1.0;
 double AngularVelocity;
+double MoonMass = 0.000001;
+double MoonRadius = 1.125;
 
 double dt = 0.0001;
 
-// Color ParticleColour = {255, 255, 255, 25};
-Color ParticleColour = {255, 255, 255, 45};
+Color ParticleColour = {255, 255, 255, 60};
+Color MoonColour = {255, 255, 255, 255};
 
 struct V2d
 {
@@ -30,6 +32,16 @@ struct V2d
 
     return *this;
   }
+
+  V2d operator-(const V2d& Other)
+  {
+    return V2d{x - Other.x, y - Other.y};
+  }
+
+  V2d operator+(const V2d& Other)
+  {
+    return V2d{x + Other.x, y + Other.y};
+  }
 };
 
 V2d operator*(double A, const V2d& V)
@@ -40,9 +52,23 @@ V2d operator*(double A, const V2d& V)
 V2d particles[n_particles];
 V2d velocities[n_particles];
 
+V2d Shepherd;
+
+struct M22d
+{
+  double M[2][2];
+};
+
+M22d Rotation(double angle)
+{
+  double C = cos(angle);
+  double S = sin(angle);
+  return M22d{C, -S, S, C};
+};
+
 double OrbitalVelocityFromRadius(double Radius)
 {
-  return sqrt(G * M * Radius);
+  return sqrt(G * M / Radius);
 }
 
 void InitDynamics()
@@ -51,11 +77,11 @@ void InitDynamics()
 
   for (int i = 0; i < n_particles; ++i)
   {
-    double Radius = 0.9 + 0.2 * 0.0001 * GetRandomValue(0, 10000);
+    double Radius = 1.0 + 0.1 * 0.0001 * GetRandomValue(0, 10000);
     double Angle = 2 * M_PI * 0.000001 * GetRandomValue(0, 1000000);
     particles[i].x = Radius * cos(Angle);
     particles[i].y = Radius * sin(Angle);
-    double Speed = 0.5*OrbitalVelocityFromRadius(Radius);
+    double Speed = OrbitalVelocityFromRadius(Radius);
     velocities[i].x = particles[i].y / Radius * Speed;
     velocities[i].y = -particles[i].x / Radius * Speed;
   }
@@ -71,25 +97,36 @@ V2d Gravitation(double M, const V2d& Position)
   return V2d{FX, FY};
 }
 
+V2d Shepherd0, Shepherd1;
+
+double t = 0.;
 void DynamicsRange(int From, int To, int NSteps)
 {
   for (int Step = 0; Step < NSteps; ++Step)
   {
+    // XXX Combine
     for (int i = From; i < To; ++i)
     {
-      V2d Acceleration = Gravitation(M, particles[i]);
-      velocities[i] += dt * Acceleration;
-//       velocities[i].x += dt * Acceleration.x;
-//       velocities[i].y += dt * Acceleration.y;
-      particles[i].x += dt * velocities[i].x;
-      particles[i].y += dt * velocities[i].y;
+      velocities[i] += 0.5 * dt * (Gravitation(M, particles[i]) + Gravitation(MoonMass, particles[i] - Shepherd0));
+      particles[i] += dt * velocities[i];
+      velocities[i] += 0.5 * dt * (Gravitation(M, particles[i]) + Gravitation(MoonMass, particles[i] - Shepherd1));
     }
+
+    t += dt;
   }
+  Shepherd = Shepherd1; // XXX
 }
 
 void dynamics()
 {
-  printf("Dynamics\n");
+    double AngularVelocity = OrbitalVelocityFromRadius(MoonRadius) / MoonRadius;
+    double angle0 = AngularVelocity * t;
+    double angle1 = AngularVelocity * (t + 0.5 * dt);
+//     printf("AngularVelocity=%f\n", AngularVelocity);
+//     printf("angle0=%f\n", angle0);
+    Shepherd0 = MoonRadius * V2d{cos(angle0), -sin(angle0)};
+    Shepherd1 = MoonRadius * V2d{cos(angle1), -sin(angle1)};
+
   std::vector<std::thread> Threads;
   for (int Thread = 0; Thread < n_threads; ++Thread)
   {
@@ -106,36 +143,45 @@ void dynamics()
     Threads[Thread].join();
   }
 
-  printf("%f %f\n", particles[0].x, particles[0].y);
+//   printf("%f %f\n", particles[0].x, particles[0].y);
 }
 
-const int ScreenWidth = 1000;
-const int ScreenHeight = 1000;
+const int ScreenWidth = 1400;
+const int ScreenHeight = 1400;
 
 void DrawParticles()
 {
 #if 0
-  double Top = 1.01;
-  double Bottom = 0.99;
-  double Left = -0.01;
-  double Right = 0.01;
+  double Top = 1.2;
+  double Bottom = 0.8;
+  double Left = -0.1;
+  double Right = 0.1;
 #else
-  double Top = 1.;
-  double Bottom = -1.;
-  double Left = -1.;
-  double Right = 1.;
+  double Top = 1.2;
+  double Bottom = -1.2;
+  double Left = -1.2;
+  double Right = 1.2;
 #endif
+
+  double Distance = MoonRadius;
+  double AngularVelocity = sqrt(G * M / (Distance * Distance * Distance));
+  M22d Rotate = Rotation(-t * AngularVelocity);
 
   for (int i = 0; i < n_particles; ++i)
   {
-    if (particles[i].x > Left && particles[i].x < Right &&
-        particles[i].y > Bottom && particles[i].y < Top)
+    V2d P = particles[i];
+    if (P.x > Left && P.x < Right &&
+        P.y > Bottom && P.y < Top)
     {
-      int ScreenX = rint((particles[i].x - Left) / (Right - Left) * ScreenWidth);
-      int ScreenY = rint((particles[i].y - Top) / (Bottom - Top) * ScreenHeight);
+      int ScreenX = rint((P.x - Left) / (Right - Left) * ScreenWidth);
+      int ScreenY = rint((P.y - Top) / (Bottom - Top) * ScreenHeight);
       DrawPixel(ScreenX, ScreenY, ParticleColour);
     }
   }
+
+  int ScreenX = rint((Shepherd.x - Left) / (Right - Left) * ScreenWidth);
+  int ScreenY = rint((Shepherd.y - Top) / (Bottom - Top) * ScreenHeight);
+  DrawCircle(ScreenX, ScreenY, 4.0, MoonColour);
 }
 
 int main(void)
