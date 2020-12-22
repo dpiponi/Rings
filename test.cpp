@@ -1,6 +1,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <thread>
+#include <vector>
 
 #include "raylib.h"
 
@@ -17,11 +18,24 @@ double dt = 0.0001;
 // Color ParticleColour = {255, 255, 255, 25};
 Color ParticleColour = {255, 255, 255, 45};
 
-typedef struct
+struct V2d
 {
   double x;
   double y;
-} V2d;
+
+  V2d& operator+=(const V2d& Other)
+  {
+    x += Other.x;
+    y += Other.y;
+
+    return *this;
+  }
+};
+
+V2d operator*(double A, const V2d& V)
+{
+  return V2d{A * V.x, A * V.y};
+}
 
 V2d particles[n_particles];
 V2d velocities[n_particles];
@@ -47,18 +61,26 @@ void InitDynamics()
   }
 }
 
+// Returns acceleration
+V2d Gravitation(double M, const V2d& Position)
+{
+  double R = hypot(Position.x, Position.y);
+  double ScalarF = G * M / (R * R);
+  double FX = -ScalarF * Position.x / R;
+  double FY = -ScalarF * Position.y / R;
+  return V2d{FX, FY};
+}
+
 void DynamicsRange(int From, int To, int NSteps)
 {
   for (int Step = 0; Step < NSteps; ++Step)
   {
     for (int i = From; i < To; ++i)
     {
-      double R = hypot(particles[i].x, particles[i].y);
-      double ScalarF = G * M / (R * R);
-      double FX = -ScalarF * particles[i].x / R;
-      double FY = -ScalarF * particles[i].y / R;
-      velocities[i].x += dt * FX;
-      velocities[i].y += dt * FY;
+      V2d Acceleration = Gravitation(M, particles[i]);
+      velocities[i] += dt * Acceleration;
+//       velocities[i].x += dt * Acceleration.x;
+//       velocities[i].y += dt * Acceleration.y;
       particles[i].x += dt * velocities[i].x;
       particles[i].y += dt * velocities[i].y;
     }
@@ -68,8 +90,20 @@ void DynamicsRange(int From, int To, int NSteps)
 void dynamics()
 {
   printf("Dynamics\n");
+  std::vector<std::thread> Threads;
+  for (int Thread = 0; Thread < n_threads; ++Thread)
   {
-    DynamicsRange(0, n_particles, 10);
+    Threads.emplace_back([Thread]()
+    {
+      int First = Thread * n_particles / n_threads;
+      int Last = std::min((Thread + 1) * n_particles / n_threads, n_particles);
+      DynamicsRange(First, Last, 100);
+    });
+  }
+
+  for (int Thread = 0; Thread < n_threads; ++Thread)
+  {
+    Threads[Thread].join();
   }
 
   printf("%f %f\n", particles[0].x, particles[0].y);
