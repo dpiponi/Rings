@@ -66,6 +66,12 @@ M22d Rotation(double angle)
   return M22d{C, -S, S, C};
 };
 
+V2d MatrixVectorMultiply(const M22d& M, const V2d& V)
+{
+  return V2d{M.M[0][0] * V.x + M.M[0][1] * V.y,
+             M.M[1][0] * V.x + M.M[1][1] * V.y};
+}
+
 double OrbitalVelocityFromRadius(double Radius)
 {
   return sqrt(G * M / Radius);
