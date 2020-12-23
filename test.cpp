@@ -5,7 +5,7 @@
 
 #include "raylib.h"
 
-#define n_particles 400000
+#define n_particles 100000
 #define n_threads 16
 
 double M = 1.0;
@@ -85,7 +85,7 @@ void InitDynamics()
   for (int i = 0; i < n_particles; ++i)
   {
     double Radius = 1.085 + 0.015 * 0.0001 * GetRandomValue(0, 10000);
-    double Angle = 2 * M_PI * 0.000001 * GetRandomValue(0, 1000000);
+    double Angle = 0. * M_PI + 0.375 * M_PI * 0.000001 * GetRandomValue(0, 1000000);
     particles[i].x = Radius * cos(Angle);
     particles[i].y = Radius * sin(Angle);
     double Speed = OrbitalVelocityFromRadius(Radius);
@@ -104,13 +104,16 @@ V2d Gravitation(double M, const V2d& Position)
   return V2d{FX, FY};
 }
 
-V2d Shepherd0, Shepherd1;
-
 double t = 0.;
-void DynamicsRange(int From, int To, int NSteps)
+void DynamicsRange(int From, int To, int NSteps, double t, double dt)
 {
   for (int Step = 0; Step < NSteps; ++Step)
   {
+    double AngularVelocity = OrbitalVelocityFromRadius(MoonRadius) / MoonRadius;
+    double angle0 = AngularVelocity * t;
+    double angle1 = AngularVelocity * (t + 0.5 * dt);
+    V2d Shepherd0 = MoonRadius * V2d{cos(angle0), -sin(angle0)};
+    V2d Shepherd1 = MoonRadius * V2d{cos(angle1), -sin(angle1)};
     // XXX Combine
     for (int i = From; i < To; ++i)
     {
@@ -121,18 +124,10 @@ void DynamicsRange(int From, int To, int NSteps)
 
     t += dt;
   }
-  Shepherd = Shepherd1; // XXX
 }
 
 void dynamics()
 {
-    double AngularVelocity = OrbitalVelocityFromRadius(MoonRadius) / MoonRadius;
-    double angle0 = AngularVelocity * t;
-    double angle1 = AngularVelocity * (t + 0.5 * dt);
-//     printf("AngularVelocity=%f\n", AngularVelocity);
-//     printf("angle0=%f\n", angle0);
-    Shepherd0 = MoonRadius * V2d{cos(angle0), -sin(angle0)};
-    Shepherd1 = MoonRadius * V2d{cos(angle1), -sin(angle1)};
 
   std::vector<std::thread> Threads;
   for (int Thread = 0; Thread < n_threads; ++Thread)
@@ -141,7 +136,7 @@ void dynamics()
     {
       int First = Thread * n_particles / n_threads;
       int Last = std::min((Thread + 1) * n_particles / n_threads, n_particles);
-      DynamicsRange(First, Last, NumSteps);
+      DynamicsRange(First, Last, NumSteps, t, dt);
     });
   }
 
@@ -149,6 +144,12 @@ void dynamics()
   {
     Threads[Thread].join();
   }
+
+  t += NumSteps * dt;
+
+  double AngularVelocity = OrbitalVelocityFromRadius(MoonRadius) / MoonRadius;
+  double angle = AngularVelocity * t;
+  Shepherd = MoonRadius * V2d{cos(angle), -sin(angle)};
 
 //   printf("%f %f\n", particles[0].x, particles[0].y);
 }
@@ -159,8 +160,8 @@ const int ScreenHeight = 512;
 void DrawParticles()
 {
 #if 1
-  double Top = 0.2;
-  double Bottom = -0.2;
+  double Top = 0.05;
+  double Bottom = -0.35;
   double Left = 0.9;
   double Right = 1.3;
 #else
