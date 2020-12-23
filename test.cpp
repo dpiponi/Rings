@@ -16,7 +16,7 @@ double MoonMass = 0.00000002;
 double MoonRadius = 1.105;
 int NumSteps = 200;
 
-double dt = 0.0001;
+double dt = 0.001;
 
 Color ParticleColour = {255, 255, 255, 50};
 Color MoonColour = {255, 255, 255, 255};
@@ -109,6 +109,8 @@ void DynamicsRange(int From, int To, int NSteps, double t, double dt)
 {
   for (int Step = 0; Step < NSteps; ++Step)
   {
+    // Repeating moon kinematics in every thread,
+    // Not as wasteful as it seems.
     double AngularVelocity = OrbitalVelocityFromRadius(MoonRadius) / MoonRadius;
     double angle0 = AngularVelocity * t;
     double angle1 = AngularVelocity * (t + 0.5 * dt);
