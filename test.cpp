@@ -5,7 +5,7 @@
 
 #include "raylib.h"
 
-#define n_particles 100000
+#define n_particles 400000
 #define n_threads 16
 
 double M = 1.0;
@@ -18,7 +18,7 @@ int NumSteps = 200;
 
 double dt = 0.0001;
 
-Color ParticleColour = {255, 255, 255, 128};
+Color ParticleColour = {255, 255, 255, 50};
 Color MoonColour = {255, 255, 255, 255};
 
 struct V2d
